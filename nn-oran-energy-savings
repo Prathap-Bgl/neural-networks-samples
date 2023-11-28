@@ -1,0 +1,185 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+class NeuralNetwork:
+    def __init__(self, input_size, hidden_size, output_size):
+        np.random.seed(42)
+        self.weights_input_hidden = np.random.rand(input_size, hidden_size)
+        self.weights_hidden_output = np.random.rand(hidden_size, output_size)
+        self.bias_hidden = np.zeros((1, hidden_size))
+        self.bias_output = np.zeros((1, output_size))
+
+    def sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
+    def sigmoid_derivative(self, x):
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
+
+    def relu(self, x):
+        return np.maximum(0, x)
+
+    def relu_derivative(self, x):
+        return np.where(x > 0, 1, 0)
+
+    def forward_propagation(self, inputs):
+        self.hidden_layer_activation = (
+            inputs.dot(self.weights_input_hidden) + self.bias_hidden
+        )
+        self.hidden_layer_output = self.sigmoid(self.hidden_layer_activation)
+
+        self.output_layer_activation = (
+            self.hidden_layer_output.dot(self.weights_hidden_output) + self.bias_output
+        )
+        self.predicted_output = self.output_layer_activation
+        #print("The forward function")
+        #print(self.hidden_layer_activation, self.hidden_layer_output, self.output_layer_activation )
+
+    def backward_propagation(self, inputs, target_output, learning_rate):
+        output_error = 2 * (target_output - self.predicted_output)
+
+        hidden_layer_error = output_error.dot(self.weights_hidden_output.T)
+        hidden_layer_delta = (
+            hidden_layer_error * self.sigmoid_derivative(self.hidden_layer_output)
+        )
+
+        self.weights_hidden_output += (
+            self.hidden_layer_output.T.dot(output_error) * learning_rate
+        )
+
+        self.weights_input_hidden += (
+            inputs.T.dot(hidden_layer_delta) * learning_rate
+        )
+
+        self.bias_output += np.sum(output_error, axis=0, keepdims=True) * learning_rate
+        self.bias_hidden += np.sum(hidden_layer_delta, axis=0, keepdims=True) * learning_rate
+        #print("The deductables...")
+        #print("output_error", output_error)
+        #print("hidden_layer_error", hidden_layer_error)
+        #print("hidden_layer_delta", hidden_layer_delta)
+        #print("self.weights_hidden_output", self.weights_hidden_output)
+        #print("self.weights_input_hidden", self.weights_input_hidden)
+        #print("self.bias_output", self.bias_output)
+        #print("self.bias_hidden", self.bias_hidden)
+
+    def calculate_mse_loss(self, target_output):
+        return ((target_output - self.predicted_output) ** 2)
+
+    def train(self, inputs, target_output, epochs, learning_rate):
+        for epoch in range(epochs):
+            for i in range(len(inputs)):
+                input_item = inputs[i].reshape(1, -1)
+                target_item = target_output[i].reshape(1, -1)
+
+                self.forward_propagation(input_item)
+                if epoch % 50 == 0 and i<len(inputs)-1:
+                   loss = self.calculate_mse_loss(target_output[i].reshape(1, -1))
+                   #print(f"Epoch {epoch}, Loss: {loss}")
+                self.backward_propagation(input_item, target_item, learning_rate)
+
+        print("Training complete.")
+
+    def predict(self, new_data):
+        self.forward_propagation(new_data)
+        return self.predicted_output
+
+    def plot_results_2d(self, cpu_usage, throughput, predicted_cpu_speed):
+        plt.plot(cpu_usage, throughput, label='Throughput')
+        plt.plot(cpu_usage, predicted_cpu_speed, label='Predicted CPU Speed')
+
+        plt.xlabel('CPU Usage')
+        plt.ylabel('Values')
+        plt.title('Neural Network Output - Energy Savings')
+        plt.legend()
+        plt.show()
+
+# Sample data (time_of_day, cpu_usage, throughput_mbps)
+inputs = np.array([
+    [0.30, 0.500], 
+    [0.40, 0.600], 
+    [0.55, 0.500], 
+    [0.65, 0.600], 
+    [0.60, 0.800],  
+    [0.75, 0.900], 
+    [0.80, 1.000],  
+    [0.35, 0.550], 
+    [0.45, 0.650], 
+    [0.65, 0.850], 
+    [0.78, 0.950], 
+    [0.85, 1.100], 
+    [0.38, 0.580], 
+    [0.50, 0.700], 
+    [0.70, 0.880], 
+    [0.82, 0.980], 
+    [0.90, 1.200],
+    [0.50, 0.500], 
+    [0.70, 0.600],
+    [0.60, 0.500],
+    [0.65, 0.950], 
+    [0.70, 1.100],
+    [0.65, 0.980], 
+    [0.70, 1.200]
+])
+
+
+# Target output (CPU speed between 1GHz to 2GHz)
+target_output = np.array([
+    [1.2],
+    [1.3],
+    [0.8],
+    [0.85],
+    [1.45],
+    [1.6],
+    [1.75],
+    [1.25],
+    [1.35],
+    [1.50],
+    [1.6],
+    [1.7],
+    [1.37],
+    [1.4],
+    [1.57],
+    [1.59],
+    [1.75],
+    [0.9],
+    [1.0],
+    [0.8],
+    [1.4],
+    [1.5],
+    [1.35],
+    [1.6]
+])
+
+# Hyperparameters
+epochs = 100
+learning_rate = 0.5
+
+# Create and train the neural network
+input_size = inputs.shape[1]
+hidden_size = 4
+output_size = 1
+neural_network = NeuralNetwork(input_size, hidden_size, output_size)
+neural_network.train(inputs, target_output, epochs, learning_rate)
+
+# Test the trained network with new data
+new_data = np.array([
+    [0.30, 0.300],
+    [0.38, 0.400],
+    [0.60, 0.300],
+    [0.65, 0.400],
+    [0.65, 0.500],
+    [0.55, 0.750],
+    [0.28, 0.700],
+    [0.60, 1.200] 
+])
+predicted_output = (neural_network.predict(new_data) *1000 ) 
+
+print("Predicted CPU speed for test data:\n", predicted_output)
+
+
+
+# Extract individual components for plotting
+cpu_usage_test = new_data[:, 0]*100
+throughput_test = new_data[:, 1]*1000
+
+# Plot the 2D results
+neural_network.plot_results_2d(cpu_usage_test, throughput_test, predicted_output.flatten())
