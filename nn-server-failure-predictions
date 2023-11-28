@@ -1,0 +1,157 @@
+import numpy as np
+
+class NeuralNetwork:
+    def __init__(self, input_size, hidden_size, output_size):
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+        # Initialize weights and biases
+        self.weights_input_hidden = np.random.rand(self.input_size, self.hidden_size)
+        self.weights_hidden_output = np.random.rand(self.hidden_size, self.output_size)
+
+    @staticmethod
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    @staticmethod
+    def sigmoid_derivative(x):
+        return x * (1 - x)
+
+    @staticmethod
+    def softmax(x):
+        exp_x = np.exp(x - np.max(x))  # Subtracting the max for numerical stability
+        return exp_x / exp_x.sum(axis=1, keepdims=True)
+
+    @staticmethod
+    def softmax_derivative(x):
+        return x * (1 - x)
+
+    @classmethod
+    def normalize_input(cls, data, min_val, max_val):
+        return (data - min_val) / (max_val - min_val)
+
+    @classmethod
+    def normalize_output(cls, data):
+        return data / 100  # Assuming probabilities are between 0 and 100%
+
+    @classmethod
+    def denormalize_output(cls, data):
+        return data * 100
+
+    def forward_pass(self, X):
+        # Input to hidden layer
+        self.hidden_layer_input = np.dot(X, self.weights_input_hidden)
+        self.hidden_layer_output = self.sigmoid(self.hidden_layer_input)
+
+        # Hidden layer to output with softmax activation
+        self.output_layer_input = np.dot(self.hidden_layer_output, self.weights_hidden_output)
+        self.predicted_output = self.softmax(self.output_layer_input)
+
+    def backward_pass(self, X, y, learning_rate):
+        # Calculate the error
+        error = y - self.predicted_output
+
+        # Backpropagation
+        output_delta = error * self.softmax_derivative(self.predicted_output)
+        hidden_layer_error = output_delta.dot(self.weights_hidden_output.T)
+        hidden_layer_delta = hidden_layer_error * self.sigmoid_derivative(self.hidden_layer_output)
+
+        # Update weights
+        self.weights_hidden_output += self.hidden_layer_output.T.dot(output_delta) * learning_rate
+        self.weights_input_hidden += X.T.dot(hidden_layer_delta) * learning_rate
+
+    def train(self, X, y, epochs, learning_rate):
+        for epoch in range(epochs):
+            self.forward_pass(X)
+            self.backward_pass(X, y, learning_rate)
+
+    def predict(self, test_data):
+        self.forward_pass(test_data)
+        return self.predicted_output
+
+def generate_test_data(num_samples):
+    np.random.seed(42)
+
+    cpu_threshold = 0.8 * 100
+    temp_threshold = 0.8 * 55
+    fan_threshold = 0.8 * 500
+
+    cpu_high = np.random.uniform(cpu_threshold, 100, num_samples)
+    temp_high = np.random.uniform(temp_threshold, 55, num_samples)
+    fan_high = np.random.uniform(fan_threshold, 500, num_samples)
+
+    cpu_mid = np.random.uniform(40, cpu_threshold, num_samples)
+    temp_mid = np.random.uniform(20, temp_threshold, num_samples)
+    fan_mid = np.random.uniform(100, fan_threshold, num_samples)
+
+    cpu_low = np.random.uniform(1, 40, num_samples)
+    temp_low = np.random.uniform(1, 20, num_samples)
+    fan_low = np.random.uniform(1, 100, num_samples)
+
+    # Combining the generated values
+    cpu_usage = np.concatenate([cpu_high, cpu_mid, cpu_low])
+    temperature = np.concatenate([temp_high, temp_mid, temp_low])
+    fan_speed = np.concatenate([fan_high, fan_mid, fan_low])
+
+    return cpu_usage, temperature, fan_speed
+
+# Generate test data
+num_samples = 10
+cpu_usage_test, temperature_test, fan_speed_test = generate_test_data(num_samples)
+
+#print("CPU-Usage:", cpu_usage_test, "\n Temperature:", temperature_test, "\nFan Speed", fan_speed_test)
+
+# Determine failure probabilities based on conditions
+failure_prob_1hr_test = np.zeros(num_samples * 3)
+failure_prob_3hr_test = np.zeros(num_samples * 3)
+failure_prob_gt3hr_test = np.zeros(num_samples * 3)
+
+# Set probabilities based on conditions
+failure_prob_1hr_test[:num_samples] = 1  # At least two inputs > 80%
+failure_prob_3hr_test[num_samples:(2 * num_samples)] = 1  # At least one input > 80%, two inputs between 40-80%
+failure_prob_gt3hr_test[(2 * num_samples):] = 1  # The rest
+
+# Combine into a single array
+failure_prob_combined_test = np.column_stack((failure_prob_1hr_test, failure_prob_3hr_test, failure_prob_gt3hr_test))
+#print("\n Combined Test:", failure_prob_combined_test)
+
+# Normalize input data
+normalized_cpu_test = NeuralNetwork.normalize_input(cpu_usage_test, 1, 100)
+normalized_temp_test = NeuralNetwork.normalize_input(temperature_test, 1, 55)
+normalized_fan_speed_test = NeuralNetwork.normalize_input(fan_speed_test, 1, 500)
+
+# Combine normalized input data
+X_test = np.column_stack((normalized_cpu_test, normalized_temp_test, normalized_fan_speed_test))
+#print("\n X_test:", X_test)
+
+# Neural Network parameters
+input_layer_size = 3
+output_layer_size = 3
+hidden_layer_size = 9
+learning_rate = 0.1
+epochs = 1000
+
+# Create and train the neural network
+model = NeuralNetwork(input_layer_size, hidden_layer_size, output_layer_size)
+model.train(X_test, failure_prob_combined_test, epochs, learning_rate)
+
+# Testing the neural network with the generated test data
+test_data = np.column_stack((normalized_cpu_test, normalized_temp_test, normalized_fan_speed_test))
+
+# Testing the neural network
+test_data = np.array([[60, 40, 450]])  # Example test data (CPU usage, temperature, fan speed)
+normalized_test_data = np.column_stack((
+    NeuralNetwork.normalize_input(test_data[:, 0], 1, 100),
+    NeuralNetwork.normalize_input(test_data[:, 1], 1, 55),
+    NeuralNetwork.normalize_input(test_data[:, 2], 1, 500)
+))
+
+normalized_predicted_output = model.predict(normalized_test_data)
+
+# Denormalize the output
+denormalized_output= NeuralNetwork.denormalize_output(normalized_predicted_output)
+
+print("Predicted failure probability in next 1 hour:", denormalized_output[0, 0])
+print("Predicted failure probability in next 3 hours:", denormalized_output[0, 1])
+print("Predicted failure probability after 3 hours:", denormalized_output[0, 2])
